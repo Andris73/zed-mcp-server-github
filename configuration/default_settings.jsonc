@@ -1,6 +1,27 @@
 {
-  /// Your GitHub Personal Access Token
-  "github_personal_access_token": "GITHUB_PERSONAL_ACCESS_TOKEN"
-  /// Your GitHub Host URL when customized (Optional)
-  // "github_host": "https://ghe.example.com/"
+  /// Your GitHub Personal Access Token (required)
+  /// Classic PATs start with "ghp_", fine-grained PATs start with "github_pat_"
+  "github_personal_access_token": "GITHUB_PERSONAL_ACCESS_TOKEN",
+  /// GitHub host URL for GitHub Enterprise Server (optional)
+  /// e.g., "https://ghe.example.com/" or "https://YOURSUBDOMAIN.ghe.com"
+  // "github_host": "https://ghe.example.com/",
+  /// Comma-separated list of toolsets to enable (optional)
+  /// Available: context, repos, issues, pull_requests, actions, code_security,
+  ///   copilot, dependabot, discussions, gists, git, labels, notifications,
+  ///   orgs, projects, secret_protection, security_advisories, stargazers, users
+  /// Use "all" to enable everything, or "default" for the default set
+  // "toolsets": "default",
+  /// Comma-separated list of individual tools to enable (optional)
+  /// Can be combined with toolsets for fine-grained control
+  // "tools": "",
+  /// Enable read-only mode to prevent all write operations (optional)
+  // "read_only": false,
+  /// Enable dynamic toolset discovery by the LLM (optional)
+  // "dynamic_toolsets": false,
+  /// Enable insiders mode for experimental features (optional)
+  // "insiders": false,
+  /// Enable lockdown mode to filter content from non-collaborators (optional)
+  // "lockdown_mode": false,
+  /// Use pre-release versions of the MCP server binary (optional)
+  // "pre_release": false
 }
