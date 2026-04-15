@@ -145,7 +145,9 @@ impl zed::Extension for GitHubModelContextExtension {
         // Validate the personal access token
         let pat = settings.github_personal_access_token.trim();
         if pat.is_empty() {
-            return Err("github_personal_access_token is empty — please provide a valid token".into());
+            return Err(
+                "github_personal_access_token is empty — please provide a valid token".into(),
+            );
         }
         if pat == "GITHUB_PERSONAL_ACCESS_TOKEN" {
             return Err(
@@ -169,9 +171,19 @@ impl zed::Extension for GitHubModelContextExtension {
 
         // Boolean-valued environment variables
         push_env_if_true(&mut env, "GITHUB_READ_ONLY", settings.read_only, "1");
-        push_env_if_true(&mut env, "GITHUB_DYNAMIC_TOOLSETS", settings.dynamic_toolsets, "1");
+        push_env_if_true(
+            &mut env,
+            "GITHUB_DYNAMIC_TOOLSETS",
+            settings.dynamic_toolsets,
+            "1",
+        );
         push_env_if_true(&mut env, "GITHUB_INSIDERS", settings.insiders, "true");
-        push_env_if_true(&mut env, "GITHUB_LOCKDOWN_MODE", settings.lockdown_mode, "1");
+        push_env_if_true(
+            &mut env,
+            "GITHUB_LOCKDOWN_MODE",
+            settings.lockdown_mode,
+            "1",
+        );
 
         Ok(Command {
             command: self.context_server_binary_path(context_server_id, pre_release)?,
