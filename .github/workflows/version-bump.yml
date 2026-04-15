@@ -3,7 +3,7 @@ name: Auto Version Bump
 on:
   pull_request:
     types: [closed]
-    branches: [main, custom-github-host]
+    branches: [custom-github-host]
 
 jobs:
   version-bump:
