@@ -45,7 +45,7 @@ impl GitHubModelContextExtension {
         pre_release: bool,
     ) -> Result<String> {
         if let Some(path) = &self.cached_binary_path {
-            if fs::metadata(path).map_or(false, |stat| stat.is_file()) {
+            if fs::metadata(path).is_ok_and(|stat| stat.is_file()) {
                 return Ok(path.clone());
             }
         }
@@ -94,7 +94,7 @@ impl GitHubModelContextExtension {
             }
         );
 
-        if !fs::metadata(&binary_path).map_or(false, |stat| stat.is_file()) {
+        if !fs::metadata(&binary_path).is_ok_and(|stat| stat.is_file()) {
             let file_kind = match platform {
                 zed::Os::Mac | zed::Os::Linux => zed::DownloadedFileType::GzipTar,
                 zed::Os::Windows => zed::DownloadedFileType::Zip,
@@ -110,9 +110,11 @@ impl GitHubModelContextExtension {
                 fs::read_dir(".").map_err(|e| format!("failed to list working directory {e}"))?;
             for entry in entries {
                 let entry = entry.map_err(|e| format!("failed to load directory entry {e}"))?;
-                if entry.file_name().to_str().map_or(false, |name| {
-                    name.starts_with(BINARY_NAME) && name != version_dir
-                }) {
+                if entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| name.starts_with(BINARY_NAME) && name != version_dir)
+                {
                     fs::remove_dir_all(entry.path()).ok();
                 }
             }
