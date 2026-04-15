@@ -1,0 +1,64 @@
+name: Auto Version Bump
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main, custom-github-host]
+
+jobs:
+  version-bump:
+    name: Bump Version & Tag
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Read current version
+        id: current
+        run: |
+          version=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Compute next patch version
+        id: next
+        run: |
+          IFS='.' read -r major minor patch <<< "${{ steps.current.outputs.version }}"
+          next_patch=$((patch + 1))
+          next_version="${major}.${minor}.${next_patch}"
+          echo "version=$next_version" >> "$GITHUB_OUTPUT"
+
+      - name: Update Cargo.toml
+        run: |
+          sed -i '0,/^version = ".*"/s//version = "${{ steps.next.outputs.version }}"/' Cargo.toml
+
+      - name: Update extension.toml
+        run: |
+          sed -i '0,/^version = ".*"/s//version = "${{ steps.next.outputs.version }}"/' extension.toml
+
+      - name: Update Cargo.lock
+        run: cargo generate-lockfile
+
+      - name: Commit version bump
+        run: |
+          git add Cargo.toml extension.toml Cargo.lock
+          git commit -m "chore: bump version to v${{ steps.next.outputs.version }} [skip ci]"
+
+      - name: Push version bump commit
+        run: git push origin ${{ github.event.pull_request.base.ref }}
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ steps.next.outputs.version }}"
+          git push origin "v${{ steps.next.outputs.version }}"
