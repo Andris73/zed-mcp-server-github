@@ -13,6 +13,25 @@ const BINARY_NAME: &str = "github-mcp-server";
 struct GitHubContextServerSettings {
     github_personal_access_token: String,
     github_host: Option<String>,
+    toolsets: Option<String>,
+    tools: Option<String>,
+    read_only: Option<bool>,
+    dynamic_toolsets: Option<bool>,
+    insiders: Option<bool>,
+    lockdown_mode: Option<bool>,
+    pre_release: Option<bool>,
+}
+
+fn push_env_if_set(env: &mut Vec<(String, String)>, key: &str, value: &Option<String>) {
+    if let Some(v) = value.as_ref().filter(|s| !s.trim().is_empty()) {
+        env.push((key.into(), v.clone()));
+    }
+}
+
+fn push_env_if_true(env: &mut Vec<(String, String)>, key: &str, value: Option<bool>, flag: &str) {
+    if value == Some(true) {
+        env.push((key.into(), flag.into()));
+    }
 }
 
 struct GitHubModelContextExtension {
@@ -23,9 +42,10 @@ impl GitHubModelContextExtension {
     fn context_server_binary_path(
         &mut self,
         _context_server_id: &ContextServerId,
+        pre_release: bool,
     ) -> Result<String> {
         if let Some(path) = &self.cached_binary_path {
-            if fs::metadata(path).map_or(false, |stat| stat.is_file()) {
+            if fs::metadata(path).is_ok_and(|stat| stat.is_file()) {
                 return Ok(path.clone());
             }
         }
@@ -34,7 +54,7 @@ impl GitHubModelContextExtension {
             REPO_NAME,
             zed::GithubReleaseOptions {
                 require_assets: true,
-                pre_release: false,
+                pre_release,
             },
         )?;
 
@@ -74,7 +94,7 @@ impl GitHubModelContextExtension {
             }
         );
 
-        if !fs::metadata(&binary_path).map_or(false, |stat| stat.is_file()) {
+        if !fs::metadata(&binary_path).is_ok_and(|stat| stat.is_file()) {
             let file_kind = match platform {
                 zed::Os::Mac | zed::Os::Linux => zed::DownloadedFileType::GzipTar,
                 zed::Os::Windows => zed::DownloadedFileType::Zip,
@@ -85,12 +105,16 @@ impl GitHubModelContextExtension {
 
             zed::make_file_executable(&binary_path)?;
 
-            // Removes old versions
+            // Remove old versions (only directories matching our binary name prefix)
             let entries =
                 fs::read_dir(".").map_err(|e| format!("failed to list working directory {e}"))?;
             for entry in entries {
                 let entry = entry.map_err(|e| format!("failed to load directory entry {e}"))?;
-                if entry.file_name().to_str() != Some(&version_dir) {
+                if entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| name.starts_with(BINARY_NAME) && name != version_dir)
+                {
                     fs::remove_dir_all(entry.path()).ok();
                 }
             }
@@ -120,17 +144,51 @@ impl zed::Extension for GitHubModelContextExtension {
         let settings: GitHubContextServerSettings =
             serde_json::from_value(settings).map_err(|e| e.to_string())?;
 
-        let mut env: Vec<(String, String)> = vec![(
-            "GITHUB_PERSONAL_ACCESS_TOKEN".into(),
-            settings.github_personal_access_token,
-        )];
-
-        if let Some(github_host) = settings.github_host.filter(|h| !h.trim().is_empty()) {
-            env.push(("GITHUB_HOST".into(), github_host));
+        // Validate the personal access token
+        let pat = settings.github_personal_access_token.trim();
+        if pat.is_empty() {
+            return Err(
+                "github_personal_access_token is empty — please provide a valid token".into(),
+            );
+        }
+        if pat == "GITHUB_PERSONAL_ACCESS_TOKEN" {
+            return Err(
+                "github_personal_access_token still contains the placeholder value — \
+                 please replace it with your actual GitHub personal access token"
+                    .into(),
+            );
         }
 
+        let pre_release = settings.pre_release.unwrap_or(false);
+
+        let mut env: Vec<(String, String)> = vec![(
+            "GITHUB_PERSONAL_ACCESS_TOKEN".into(),
+            settings.github_personal_access_token.clone(),
+        )];
+
+        // String-valued environment variables
+        push_env_if_set(&mut env, "GITHUB_HOST", &settings.github_host);
+        push_env_if_set(&mut env, "GITHUB_TOOLSETS", &settings.toolsets);
+        push_env_if_set(&mut env, "GITHUB_TOOLS", &settings.tools);
+
+        // Boolean-valued environment variables
+        push_env_if_true(&mut env, "GITHUB_READ_ONLY", settings.read_only, "1");
+        push_env_if_true(
+            &mut env,
+            "GITHUB_DYNAMIC_TOOLSETS",
+            settings.dynamic_toolsets,
+            "1",
+        );
+        push_env_if_true(&mut env, "GITHUB_INSIDERS", settings.insiders, "true");
+        push_env_if_true(
+            &mut env,
+            "GITHUB_LOCKDOWN_MODE",
+            settings.lockdown_mode,
+            "1",
+        );
+
         Ok(Command {
-            command: self.context_server_binary_path(context_server_id)?,
+            command: self.context_server_binary_path(context_server_id, pre_release)?,
             args: vec!["stdio".to_string()],
             env,
         })
